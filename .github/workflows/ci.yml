@@ -17,10 +17,10 @@ jobs:
       # Install Node
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.8.0
           cache: 'npm'
 
-      - run: npm install -g npm@8.5.5
+      - run: npm install -g npm
 
       # Install & build:
       - run: |
@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/*
@@ -47,19 +47,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
         
       - name: Setup Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v4
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1 
+        uses: actions/upload-pages-artifact@v4
         with:
           path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v4
