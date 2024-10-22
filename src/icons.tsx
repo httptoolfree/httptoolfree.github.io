@@ -19,6 +19,11 @@ import {
     Plug,
     QuestionMark,
     ArrowLeft,
+    MagicWand,
+    Sun,
+    Moon,
+    CircleHalf,
+    Swatches
 } from '@phosphor-icons/react';
 
 export type IconKey = keyof typeof Icons;
@@ -46,6 +51,11 @@ const Icons = {
     Plug,
     QuestionMark,
     ArrowLeft,
+    MagicWand,
+    Sun,
+    Moon,
+    CircleHalf,
+    Swatches
 } as const;
 
 // Import required FA icons:
