@@ -1,65 +1,47 @@
 name: CI
+
 on: [push, pull_request]
+
 env:
-  UI_VERSION: ${{ github.sha }}
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+  HTTPTOOLKIT_SERVER_DISABLE_AUTOUPDATE: 1
+
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    container: httptoolkit/act-build-base:v3.0.0
+  build-and-publish-windows:
+    name: Build & Publish Windows Release
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
-      # Install Node
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.8.0
-          cache: 'npm'
+          node-version: 20.18.1
 
-      - run: npm install -g npm
+      - run: npm install -g npm@^8
 
-      # Install & build:
-      - run: |
-          curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-          curl -sL https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo apt update
-          sudo apt install -y cmake
-          npm ci
+      - run: npm ci
+        env:
+          NPM_CONFIG_UNSAFE_PERM: true
 
-      - name: Build
-        run: npm run build
+      - run: npm run build:src
+
+      - run: npm run build:release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.TOKEN || '' }}
+          SENTRY_ORG: http-toolkit
+          SENTRY_PROJECT: httptoolkit-server
+          NPM_CONFIG_UNSAFE_PERM: true
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/*
+          name: distributables
+          path: build/dist/*
           if-no-files-found: error
 
-  publish-pages:
-    name: Publish Pages
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/download-artifact@v4
+      - name: Publish a release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: dist
-          path: dist
-        
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3.0.1
-        with:
-          path: './dist'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          repo_token: ${{ secrets.\\\TOKEN }}
+          file: build/dist/*/*
+          file_glob: true
+          tag: ${{ github.ref }}
