@@ -1,14 +1,16 @@
 name: CI
-
 on: [push, pull_request]
-
 env:
-  HTTPTOOLKIT_SERVER_DISABLE_AUTOUPDATE: 1
-
+  HTTPTOOLKIT_SERVER_DISABLE_AUTOUPDATE: 1 # Don't try to autoupdate during tests etc
 jobs:
-  build-and-publish-windows:
-    name: Build & Publish Windows Release
-    runs-on: windows-2022
+  build:
+    name: Build & test
+    runs-on: ubuntu-22.04
+    container:
+      image: httptoolkit/act-build-base:v3.0.0
+      options: "--privileged" # Required for DIND tests
+    env:
+      DIND_HOST: unix:///tmp/docker.sock
     steps:
       - uses: actions/checkout@v4
 
@@ -18,30 +20,47 @@ jobs:
 
       - run: npm install -g npm@^8
 
+      - name: Set up JDK 11 for Java testing
+        uses: actions/setup-java@v4
+        with:
+          java-version: 11
+          distribution: adopt-hotspot
+
       - run: npm ci
         env:
           NPM_CONFIG_UNSAFE_PERM: true
 
       - run: npm run build:src
 
-      - run: npm run build:release
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.TOKEN || '' }}
-          SENTRY_ORG: http-toolkit
-          SENTRY_PROJECT: httptoolkit-server
-          NPM_CONFIG_UNSAFE_PERM: true
 
-      - uses: actions/upload-artifact@v4
+
+
+  publish:
+    name: Publish a release
+    runs-on: "ubuntu-22.04"
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build
+    steps:
+      - name: Get our distributables
+        uses: actions/download-artifact@v4
         with:
           name: distributables
-          path: build/dist/*
-          if-no-files-found: error
+          path: distributables
 
-      - name: Publish a release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      - name: Upload server release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.TOKEN }}
-          file: build/dist/*/*
+          file: ./distributables/*/*
           file_glob: true
           tag: ${{ github.ref }}
+
+      - name: Upload latest manifest
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.TOKEN }}
+          file: ./distributables/latest-manifest/*
+          file_glob: true
+          tag: latest-manifest
+          overwrite: true
