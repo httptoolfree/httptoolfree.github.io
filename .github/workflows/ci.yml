@@ -1,66 +1,65 @@
 name: CI
 on: [push, pull_request]
 env:
-  HTTPTOOLKIT_SERVER_DISABLE_AUTOUPDATE: 1 # Don't try to autoupdate during tests etc
+  UI_VERSION: ${{ github.sha }}
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 jobs:
   build:
-    name: Build & test
-    runs-on: ubuntu-22.04
-    container:
-      image: httptoolkit/act-build-base:v3.0.0
-      options: "--privileged" # Required for DIND tests
-    env:
-      DIND_HOST: unix:///tmp/docker.sock
+    name: Build
+    runs-on: ubuntu-latest
+    container: httptoolkit/act-build-base:v3.0.0
     steps:
       - uses: actions/checkout@v4
 
+      # Install Node
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.18.1
+          node-version: 20.8.0
+          cache: 'npm'
 
-      - run: npm install -g npm@^8
+      - run: npm install -g npm
 
-      - name: Set up JDK 11 for Java testing
-        uses: actions/setup-java@v4
+      # Install & build:
+      - run: |
+          curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+          curl -sL https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo apt update
+          sudo apt install -y cmake
+          npm ci
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
         with:
-          java-version: 11
-          distribution: adopt-hotspot
+          name: dist
+          path: dist/*
+          if-no-files-found: error
 
-      - run: npm ci
-        env:
-          NPM_CONFIG_UNSAFE_PERM: true
-
-      - run: npm run build:src
-
-
-
-
-  publish:
-    name: Publish a release
-    runs-on: "ubuntu-22.04"
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs:
-      - build
+  publish-pages:
+    name: Publish Pages
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Get our distributables
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: distributables
-          path: distributables
+          name: dist
+          path: dist
+        
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
 
-      - name: Upload server release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3.0.1
         with:
-          repo_token: ${{ secrets.TOKEN }}
-          file: ./distributables/*/*
-          file_glob: true
-          tag: ${{ github.ref }}
+          path: './dist'
 
-      - name: Upload latest manifest
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.TOKEN }}
-          file: ./distributables/latest-manifest/*
-          file_glob: true
-          tag: latest-manifest
-          overwrite: true
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
