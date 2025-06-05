@@ -48,8 +48,8 @@ const EmptyStateOverlay = styled(EmptyState)`
 
 interface ViewEventListProps {
     className?: string;
-    events: CollectedEvent[];
-    filteredEvents: CollectedEvent[];
+    events: ReadonlyArray<CollectedEvent>;
+    filteredEvents: ReadonlyArray<CollectedEvent>;
     selectedEvent: CollectedEvent | undefined;
     isPaused: boolean;
 
@@ -77,6 +77,10 @@ const ListContainer = styled.div<{ role: 'table' }>`
         right: 0;
         box-shadow: rgba(0, 0, 0, 0.1) 0px 0px 30px inset;
         pointer-events: none;
+    }
+
+    & > div > div[tabindex="0"]:focus {
+        outline: thin dotted ${p => p.theme.popColor};
     }
 `;
 
@@ -324,7 +328,7 @@ export const TableHeaderRow = styled.div<{ role: 'row' }>`
 interface EventRowProps extends ListChildComponentProps {
     data: {
         selectedEvent: CollectedEvent | undefined;
-        events: CollectedEvent[];
+        events: ReadonlyArray<CollectedEvent>;
         contextMenuBuilder: ViewEventContextMenuBuilder;
     }
 }
@@ -344,7 +348,7 @@ const EventRow = observer((props: EventRowProps) => {
             tlsEvent={event}
         />;
     } else if (event.isHttp()) {
-        if (event.api?.isBuiltInApi && event.api.matchedOperation()) {
+        if (event.apiSpec?.isBuiltInApi && event.api?.matchedOperation()) {
             return <BuiltInApiRow
                 index={index}
                 isSelected={isSelected}
@@ -408,7 +412,7 @@ const ExchangeRow = inject('uiStore')(observer(({
             } request ${
                 response === 'aborted' || exchange.isWebSocket()
                     ? '' // Stated by the category already
-                : exchange.isBreakpointed
+                : exchange.downstream.isBreakpointed
                     ? 'waiting at a breakpoint'
                 : !response
                     ? 'waiting for a response'
@@ -435,7 +439,7 @@ const ExchangeRow = inject('uiStore')(observer(({
             {
                 response === 'aborted'
                     ? <StatusCode status={'aborted'} />
-                : exchange.isBreakpointed
+                : exchange.downstream.isBreakpointed
                     ? <WarningIcon title='Breakpointed, waiting to be resumed' />
                 : exchange.isWebSocket() && response?.statusCode === 101
                     ? <StatusCode // Special UI for accepted WebSockets
@@ -858,6 +862,16 @@ export class ViewEventList extends React.Component<ViewEventListProps> {
 
     private focusSelectedEvent = () => {
         this.focusEvent(this.props.selectedEvent);
+    }
+
+    focusList() {
+        const { selectedEvent } = this.props;
+        if (selectedEvent) {
+            this.scrollToEvent(selectedEvent);
+        } else {
+            const listWindow = this.listBodyRef.current?.parentElement;
+            listWindow?.focus();
+        }
     }
 
     private isListAtBottom() {

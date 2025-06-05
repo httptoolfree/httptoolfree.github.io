@@ -10,6 +10,7 @@ import {
     BreakpointRequestResult,
     BreakpointResponseResult,
     MockttpBreakpointResponseResult,
+    HttpVersion,
 } from "../../types";
 import { logError } from "../../errors";
 
@@ -69,12 +70,12 @@ export async function getRequestBreakpoint(request: MockttpBreakpointedRequest) 
     );
 }
 
-export function getDummyResponseBreakpoint(httpVersion: 1 | 2) {
+export function getDummyResponseBreakpoint(httpVersion: HttpVersion) {
     const breakpoint = new ResponseBreakpoint(
         {
             statusCode: 200,
             statusMessage: undefined,
-            rawHeaders: httpVersion === 2 ? [[':status', '200']] : [],
+            rawHeaders: httpVersion >= 2 ? [[':status', '200']] : [],
         },
         stringToBuffer(''),
         stringToBuffer('')
@@ -138,7 +139,7 @@ export abstract class Breakpoint<T extends BreakpointInProgress> {
             newValue: newEncodedLength
         }) => {
             const { rawHeaders } = this.resultMetadata;
-            const previousContentLength = parseInt(getHeaderValue(rawHeaders, 'Content-Length') || '', 10);
+            const previousContentLength = parseInt(getHeaderValue(rawHeaders, 'content-length') || '', 10);
 
             // If the content-length was previously correct, keep it correct:
             if (previousContentLength === previousEncodedLength) {
@@ -151,8 +152,8 @@ export abstract class Breakpoint<T extends BreakpointInProgress> {
         });
 
         // When content-length is first added, default to the correct value
-        let oldContentLength = getHeaderValue(this.resultMetadata.rawHeaders, 'Content-Length');
-        reaction(() => getHeaderValue(this.resultMetadata.rawHeaders, 'Content-Length'), (newContentLength) => {
+        let oldContentLength = getHeaderValue(this.resultMetadata.rawHeaders, 'content-length');
+        reaction(() => getHeaderValue(this.resultMetadata.rawHeaders, 'content-length'), (newContentLength) => {
             if (oldContentLength === undefined && newContentLength === "") {
                 const { rawHeaders } = this.resultMetadata;
                 this.updateMetadata({
